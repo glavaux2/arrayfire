@@ -19,6 +19,7 @@
 #include <kernel_headers/reduce_by_key_boundary_dim.hpp>
 #include <kernel_headers/reduce_by_key_compact.hpp>
 #include <kernel_headers/reduce_by_key_compact_dim.hpp>
+#include <kernel_headers/reduce_by_key_fill_value.hpp>
 #include <kernel_headers/reduce_by_key_needs_reduction.hpp>
 #include <memory.hpp>
 #include <program.hpp>
@@ -446,6 +447,43 @@ void launch_test_needs_reduction(cl::Buffer needs_reduction,
     CL_DEBUG_FINISH(getQueue());
 }
 
+template<typename Tk>
+void launch_fill_value(cl::Buffer buffer_to_fill, Tk value, const int n,
+                       const int numBlocks, const int threads_x) {
+    std::string ref_name = std::string("fill_value_") +
+                           std::string(dtype_traits<Tk>::getName()) +
+                           std::string("_") + std::to_string(threads_x);
+
+    int device = getActiveDeviceId();
+
+    kc_entry_t entry = kernelCache(device, ref_name);
+
+    if (entry.prog == 0 && entry.ker == 0) {
+        std::ostringstream options;
+        options << " -D Tk=" << dtype_traits<Tk>::getName()
+                << " -D DIMX=" << threads_x;
+
+        const char *ker_strs[] = {ops_cl, reduce_by_key_fill_value_cl};
+        const int ker_lens[]   = {ops_cl_len, reduce_by_key_fill_value_cl_len};
+        Program prog;
+        buildProgram(prog, 2, ker_strs, ker_lens, options.str());
+
+        entry.prog = new Program(prog);
+        entry.ker  = new Kernel(*entry.prog, "fill_value");
+
+        addKernelToCache(device, ref_name, entry);
+    }
+
+    NDRange local(threads_x);
+    NDRange global(threads_x * numBlocks);
+
+    auto fillOp = KernelFunctor<Buffer, Tk, int>(*entry.ker);
+
+    fillOp(EnqueueArgs(getQueue(), global, local), buffer_to_fill, value, n);
+
+    CL_DEBUG_FINISH(getQueue());
+}
+
 template<typename Ti, typename Tk, typename To, af_op_t op>
 int reduce_by_key_first(Array<Tk> &keys_out, Array<To> &vals_out,
                         const Param keys, const Param vals, bool change_nan,
@@ -506,10 +544,10 @@ int reduce_by_key_first(Array<Tk> &keys_out, Array<To> &vals_out,
                                      sizeof(int), &n_reduced_host);
 
         // reset flags
-        getQueue().enqueueFillBuffer<int>(*needs_another_reduction.get(), 0, 0,
-                                          sizeof(int));
-        getQueue().enqueueFillBuffer<int>(*needs_block_boundary_reduction.get(),
-                                          0, 0, sizeof(int));
+        launch_fill_value<int>(*needs_another_reduction.get(), 0, 1, 1,
+                               numThreads);
+        launch_fill_value<int>(*needs_block_boundary_reduction.get(), 0, 1, 1,
+                               numThreads);
 
         numBlocksD0 = divup(n_reduced_host, numThreads);
 
@@ -622,10 +660,10 @@ int reduce_by_key_dim(Array<Tk> &keys_out, Array<To> &vals_out,
                                      sizeof(int), &n_reduced_host);
 
         // reset flags
-        getQueue().enqueueFillBuffer<int>(*needs_another_reduction.get(), 0, 0,
-                                          sizeof(int));
-        getQueue().enqueueFillBuffer<int>(*needs_block_boundary_reduction.get(),
-                                          0, 0, sizeof(int));
+        launch_fill_value<int>(*needs_another_reduction.get(), 0, 1, 1,
+                               numThreads);
+        launch_fill_value<int>(*needs_block_boundary_reduction.get(), 0, 1, 1,
+                               numThreads);
 
         numBlocksD0 = divup(n_reduced_host, numThreads);
 
