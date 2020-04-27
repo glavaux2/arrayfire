@@ -71,6 +71,12 @@ function(arrayfire_set_default_cxx_flags target)
         target_compile_options(${target}
           PRIVATE -Wno-ignored-attributes)
     endif()
+
+    check_cxx_compiler_flag(-Wall has_all_warnings_flag)
+    if(has_all_warnings_flag)
+      target_compile_options(${target}
+        PRIVATE -Wall)
+    endif()
   endif()
 endfunction()
 
@@ -172,7 +178,7 @@ macro(arrayfire_set_cmake_default_variables)
   #         PREFIX AF
   #         COMPILERS AppleClang Clang GNU Intel MSVC
   #         # NOTE: cxx_attribute_deprecated does not work well with C
-  #         FEATURES cxx_rvalue_references cxx_noexcept cxx_variadic_templates cxx_alignas cxx_static_assert
+  #         FEATURES cxx_rvalue_references cxx_noexcept cxx_variadic_templates cxx_alignas cxx_static_assert cxx_generalized_initializers
   #         ALLOW_UNKNOWN_COMPILERS
   #         #[VERSION <version>]
   #         #[PROLOG <prolog>]

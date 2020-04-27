@@ -48,15 +48,13 @@ void gradient(Param grad0, Param grad1, const Param in) {
         options << " -D T=" << dtype_traits<T>::getName() << " -D TX=" << TX
                 << " -D TY=" << TY << " -D ZERO=" << toNumStr(scalar<T>(0));
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D CPLX=1";
         } else {
             options << " -D CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char* ker_strs[] = {gradient_cl};
         const int ker_lens[]   = {gradient_cl_len};

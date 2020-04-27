@@ -105,12 +105,14 @@ struct Kernel {
 
 // TODO(pradeep): remove this in API and merge JIT and nvrtc caches
 Kernel buildKernel(const int device, const std::string& nameExpr,
-                   const std::string& jitSourceString,
+                   const std::string& jit_ker,
                    const std::vector<std::string>& opts = {},
                    const bool isJIT                     = false);
 
+Kernel loadKernel(const int device, const std::string& nameExpr);
+
 template<typename T>
-std::string toString(T value);
+std::string toString(T val);
 
 struct TemplateArg {
     std::string _tparam;

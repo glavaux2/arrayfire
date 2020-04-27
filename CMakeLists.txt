@@ -53,12 +53,14 @@ option(AF_BUILD_OPENCL   "Build ArrayFire with a OpenCL backend"     ${OpenCL_FO
 option(AF_BUILD_UNIFIED  "Build Backend-Independent ArrayFire API"   ON)
 option(AF_BUILD_DOCS     "Create ArrayFire Documentation"            ${DOXYGEN_FOUND})
 option(AF_BUILD_EXAMPLES "Build Examples"                            ON)
+option(AF_WITH_CUDNN     "Use cuDNN for convolveNN functions"        ${cuDNN_FOUND})
 option(AF_BUILD_FORGE
     "Forge libs are not built by default as it is not link time dependency" OFF)
 
 option(AF_WITH_NONFREE  "Build ArrayFire nonfree algorithms"   OFF)
 option(AF_WITH_LOGGING  "Build ArrayFire with logging support" ON)
 option(AF_WITH_STACKTRACE  "Add stacktraces to the error messages." ON)
+option(AF_CACHE_KERNELS_TO_DISK "Enable caching kernels to disk" ON)
 
 if(WIN32)
   set(AF_STACKTRACE_TYPE "Windbg" CACHE STRING "The type of backtrace features. Windbg(simple), None")
@@ -221,6 +223,10 @@ foreach(backend ${built_backends})
   if(AF_WITH_LOGGING)
     target_compile_definitions(${backend}
       PRIVATE AF_WITH_LOGGING)
+  endif()
+  if(AF_CACHE_KERNELS_TO_DISK)
+    target_compile_definitions(${backend}
+      PRIVATE AF_CACHE_KERNELS_TO_DISK)
   endif()
 endforeach()
 

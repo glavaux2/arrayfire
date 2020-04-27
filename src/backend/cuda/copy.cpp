@@ -44,7 +44,6 @@ void copyData(T *dst, const Array<T> &src) {
     CUDA_CHECK(cudaMemcpyAsync(dst, ptr, src.elements() * sizeof(T),
                                cudaMemcpyDeviceToHost, stream));
     CUDA_CHECK(cudaStreamSynchronize(stream));
-    return;
 }
 
 template<typename T>
@@ -64,7 +63,7 @@ Array<T> copyArray(const Array<T> &src) {
 template<typename inType, typename outType>
 Array<outType> padArray(Array<inType> const &in, dim4 const &dims,
                         outType default_value, double factor) {
-    ARG_ASSERT(1, (in.ndims() == (size_t)dims.ndims()));
+    ARG_ASSERT(1, (in.ndims() == dims.ndims()));
     Array<outType> ret = createEmptyArray<outType>(dims);
     kernel::copy<inType, outType>(ret, in, in.ndims(), default_value, factor);
     return ret;
@@ -101,7 +100,7 @@ template<typename inType, typename outType>
 void copyArray(Array<outType> &out, Array<inType> const &in) {
     static_assert(!(is_complex<inType>::value && !is_complex<outType>::value),
                   "Cannot copy from complex value to a non complex value");
-    ARG_ASSERT(1, (in.ndims() == (size_t)out.dims().ndims()));
+    ARG_ASSERT(1, (in.ndims() == out.dims().ndims()));
     copyWrapper<inType, outType> copyFn;
     copyFn(out, in);
 }
@@ -221,7 +220,7 @@ INSTANTIATE_PAD_ARRAY_COMPLEX(cdouble)
 
 template<typename T>
 T getScalar(const Array<T> &in) {
-    T retVal;
+    T retVal{};
     CUDA_CHECK(cudaMemcpyAsync(&retVal, in.get(), sizeof(T),
                                cudaMemcpyDeviceToHost,
                                cuda::getActiveStream()));

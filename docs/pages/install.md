@@ -35,7 +35,7 @@ install the Visual Studio 2015 (x64) runtime libraries.
 Once you have downloaded the ArrayFire installer, execute the installer as you
 normally would on Windows. If you choose not to modify the path during the
 installation procedure, you'll need to manually add ArrayFire to the path for
-all users. Simply append `%AF_PATH%/lib` to the PATH variable so that the loader
+all users. Simply append `%%AF_PATH%/lib` to the PATH variable so that the loader
 can find ArrayFire DLLs.
 
 For more information on using ArrayFire on Windows, visit the following
@@ -52,7 +52,7 @@ like to install ArrayFire to - we recommend `/opt`.
 Given sudo permissions, you can add the ArrayFire libraries via `ldconfig` like
 so:
 
-    echo /opt/arrayfire/lib > /etc/ld.so.conf.d/arrayfire.conf
+    echo /opt/arrayfire/lib64 > /etc/ld.so.conf.d/arrayfire.conf
     sudo ldconfig
 
 Otherwise, you will need to set the `LD_LIBRARY_PATH` environment variable in

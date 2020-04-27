@@ -31,7 +31,7 @@ using std::unique_ptr;
 
 namespace cpu {
 
-static const string get_system(void) {
+static string get_system() {
     string arch = (sizeof(void*) == 4) ? "32-bit " : "64-bit ";
 
     return arch +
@@ -68,10 +68,11 @@ string getDeviceInfo() noexcept {
 
     info << string("[0] ") << cinfo.vendor() << ": " << ltrim(model);
 
-    if (memMB)
+    if (memMB) {
         info << ", " << memMB << " MB, ";
-    else
+    } else {
         info << ", Unknown MB, ";
+    }
 
     info << "Max threads(" << cinfo.threads() << ") ";
 #ifndef NDEBUG
@@ -120,7 +121,7 @@ unsigned getMaxJitSize() {
 int getDeviceCount() { return DeviceManager::NUM_DEVICES; }
 
 // Get the currently active device id
-int getActiveDeviceId() { return DeviceManager::ACTIVE_DEVICE_ID; }
+unsigned getActiveDeviceId() { return DeviceManager::ACTIVE_DEVICE_ID; }
 
 size_t getDeviceMemorySize(int device) {
     UNUSED(device);

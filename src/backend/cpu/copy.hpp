@@ -20,7 +20,7 @@ class dim4;
 namespace cpu {
 
 template<typename T>
-void copyData(T *data, const Array<T> &A);
+void copyData(T *to, const Array<T> &from);
 
 template<typename T>
 Array<T> copyArray(const Array<T> &A);
@@ -43,6 +43,8 @@ Array<T> padArrayBorders(const Array<T> &in, const dim4 &lowerBoundPadding,
                lowerBoundPadding[1] + iDims[1] + upperBoundPadding[1],
                lowerBoundPadding[2] + iDims[2] + upperBoundPadding[2],
                lowerBoundPadding[3] + iDims[3] + upperBoundPadding[3]);
+
+    if (oDims == iDims) { return in; }
 
     auto ret = (btype == AF_PAD_ZERO ? createValueArray<T>(oDims, scalar<T>(0))
                                      : createEmptyArray<T>(oDims));

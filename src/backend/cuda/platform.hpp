@@ -28,8 +28,11 @@ struct cusparseContext;
 typedef struct cusparseContext* SparseHandle;
 struct cusolverDnContext;
 typedef struct cusolverDnContext* SolveHandle;
+
+#ifdef WITH_CUDNN
 struct cudnnContext;
 typedef struct cudnnContext* cudnnHandle_t;
+#endif
 
 namespace spdlog {
 class logger;
@@ -59,7 +62,7 @@ std::string getDeviceInfo(int device) noexcept;
 
 std::string getPlatformInfo() noexcept;
 
-std::string getDriverVersion();
+std::string getDriverVersion() noexcept;
 
 // Returns the cuda runtime version as a string for the current build. If no
 // runtime is found or an error occured, the string "N/A" is returned
@@ -77,7 +80,7 @@ unsigned getMaxJitSize();
 
 int getDeviceCount();
 
-int getActiveDeviceId();
+unsigned getActiveDeviceId();
 
 int getDeviceNativeId(int device);
 
@@ -122,7 +125,9 @@ PlanCache& fftManager();
 
 BlasHandle blasHandle();
 
+#ifdef WITH_CUDNN
 cudnnHandle_t nnHandle();
+#endif
 
 SolveHandle solverDnHandle();
 

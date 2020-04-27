@@ -12,39 +12,46 @@
 #include <common/util.hpp>
 #include <cudnnModule.hpp>
 #include <device_manager.hpp>
+#include <utility.hpp>
 
 #include <string>
 #include <tuple>
 
+using std::make_tuple;
 using std::string;
 
 namespace cuda {
 
-spdlog::logger* cudnnModule::getLogger() { return module.getLogger(); }
+spdlog::logger* cudnnModule::getLogger() const noexcept {
+    return module.getLogger();
+}
 
 auto cudnnVersionComponents(size_t version) {
-    int major = version / 1000;
-    int minor = (version - (major * 1000)) / 100;
-    int patch = (version - (major * 1000) - (minor * 100));
-    return std::tuple<int, int, int>(major, minor, patch);
+    size_t major = version / 1000;
+    size_t minor = (version - (major * 1000)) / 100;
+    size_t patch = (version - (major * 1000) - (minor * 100));
+    return make_tuple(major, minor, patch);
 }
 
 cudnnModule::cudnnModule()
     : module({"cudnn"}, {"", "64_7", "64_8", "64_6", "64_5", "64_4"}, {""}) {
     if (!module.isLoaded()) {
-        string error_message =
-            "Error loading cuDNN: " + module.getErrorMessage() +
+        AF_TRACE(
+            "WARNING: Unable to load cuDNN: {}"
             "\ncuDNN failed to load. Try installing cuDNN or check if cuDNN is "
             "in the search path. On Linux, you can set the LD_DEBUG=libs "
-            "environment variable to debug loading issues.";
-        AF_ERROR(error_message.c_str(), AF_ERR_LOAD_LIB);
+            "environment variable to debug loading issues. Falling back to "
+            "matmul based implementation",
+            module.getErrorMessage());
+
+        return;
     }
 
     MODULE_FUNCTION_INIT(cudnnGetVersion);
 
     int rtmajor, rtminor;
-    int cudnn_version             = this->cudnnGetVersion();
-    int cudnn_rtversion           = 0;
+    size_t cudnn_version          = this->cudnnGetVersion();
+    size_t cudnn_rtversion        = 0;
     std::tie(major, minor, patch) = cudnnVersionComponents(cudnn_version);
 
     if (cudnn_version >= 6000) {
@@ -75,7 +82,7 @@ cudnnModule::cudnnModule()
 
     int afcuda_runtime = 0;
     cudaRuntimeGetVersion(&afcuda_runtime);
-    if (afcuda_runtime != cudnn_version) {
+    if (afcuda_runtime != static_cast<int>(cudnn_version)) {
         getLogger()->warn(
             "WARNING: ArrayFire CUDA Runtime({}) and cuDNN CUDA "
             "Runtime({}.{}) do not match. For maximum compatibility, make sure "
@@ -129,8 +136,8 @@ cudnnModule::cudnnModule()
     }
 }
 
-cudnnModule& getCudnnPlugin() {
-    static cudnnModule* plugin = new cudnnModule();
+cudnnModule& getCudnnPlugin() noexcept {
+    static auto* plugin = new cudnnModule();
     return *plugin;
 }
 

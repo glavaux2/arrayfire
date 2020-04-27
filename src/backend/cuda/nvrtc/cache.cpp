@@ -11,6 +11,7 @@
 
 #include <common/Logger.hpp>
 #include <common/internal_enums.hpp>
+#include <common/util.hpp>
 #include <device_manager.hpp>
 #include <kernel_headers/jit_cuh.hpp>
 #include <nvrtc_kernel_headers/Param_hpp.hpp>
@@ -43,6 +44,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <fstream>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -53,6 +55,7 @@
 
 using std::accumulate;
 using std::array;
+using std::back_insert_iterator;
 using std::begin;
 using std::end;
 using std::extent;
@@ -83,7 +86,7 @@ using kc_t = map<string, Kernel>;
     do {                                                                     \
         CUresult res = fn;                                                   \
         if (res == CUDA_SUCCESS) break;                                      \
-        char cu_err_msg[1024];                                               \
+        char cu_err_msg[1024 + 48];                                          \
         const char *cu_err_name;                                             \
         cuGetErrorName(res, &cu_err_name);                                   \
         snprintf(cu_err_msg, sizeof(cu_err_msg), "CU Error %s(%d): %s\n",    \
@@ -147,6 +150,17 @@ void Kernel::getScalar(T &out, const char *name) {
 
 template void Kernel::setScalar<int>(const char *, int);
 template void Kernel::getScalar<int>(int &, const char *);
+
+string getKernelCacheFilename(const int device, const string &nameExpr) {
+    const string mangledName = "KER" + to_string(deterministicHash(nameExpr));
+
+    const auto computeFlag = getComputeCapability(device);
+    const string computeVersion =
+        to_string(computeFlag.first) + to_string(computeFlag.second);
+
+    return mangledName + "_CU_" + computeVersion + "_AF_" +
+           to_string(AF_API_VERSION_CURRENT) + ".cubin";
+}
 
 Kernel buildKernel(const int device, const string &nameExpr,
                    const string &jit_ker, const vector<string> &opts,
@@ -245,7 +259,7 @@ Kernel buildKernel(const int device, const string &nameExpr,
     }
 
     auto computeFlag = getComputeCapability(device);
-    array<char, 32> arch;
+    array<char, 32> arch{};
     snprintf(arch.data(), arch.size(), "--gpu-architecture=compute_%d%d",
              computeFlag.first, computeFlag.second);
     vector<const char *> compiler_options = {
@@ -257,7 +271,10 @@ Kernel buildKernel(const int device, const string &nameExpr,
 #endif
     };
     if (!isJIT) {
-        for (auto &s : opts) { compiler_options.push_back(&s[0]); }
+        transform(begin(opts), end(opts),
+                  back_insert_iterator<vector<const char *>>(compiler_options),
+                  [](const std::string &s) { return s.data(); });
+
         compiler_options.push_back("--device-as-default-execution-space");
         NVRTC_CHECK(nvrtcAddNameExpression(prog, ker_name));
     }
@@ -309,6 +326,37 @@ Kernel buildKernel(const int device, const string &nameExpr,
     CU_CHECK(cuModuleGetFunction(&kernel, module, name));
     Kernel entry = {module, kernel};
 
+#ifdef AF_CACHE_KERNELS_TO_DISK
+    // save kernel in cache
+    const string &cacheDirectory = getCacheDirectory();
+    if (!cacheDirectory.empty()) {
+        const string cacheFile = cacheDirectory + AF_PATH_SEPARATOR +
+                                 getKernelCacheFilename(device, nameExpr);
+        const string tempFile =
+            cacheDirectory + AF_PATH_SEPARATOR + makeTempFilename();
+
+        // compute CUBIN hash
+        const size_t cubinHash = deterministicHash(cubin, cubinSize);
+
+        // write kernel function name and CUBIN binary data
+        std::ofstream out(tempFile, std::ios::binary);
+        const size_t nameSize = strlen(name);
+        out.write(reinterpret_cast<const char *>(&nameSize), sizeof(nameSize));
+        out.write(name, nameSize);
+        out.write(reinterpret_cast<const char *>(&cubinHash),
+                  sizeof(cubinHash));
+        out.write(reinterpret_cast<const char *>(&cubinSize),
+                  sizeof(cubinSize));
+        out.write(static_cast<const char *>(cubin), cubinSize);
+        out.close();
+
+        // try to rename temporary file into final cache file, if this fails
+        // this means another thread has finished compiling this kernel before
+        // the current thread.
+        if (!renameFile(tempFile, cacheFile)) { removeFile(tempFile); }
+    }
+#endif
+
     CU_LINK_CHECK(cuLinkDestroy(linkState));
     NVRTC_CHECK(nvrtcDestroyProgram(&prog));
 
@@ -330,21 +378,81 @@ Kernel buildKernel(const int device, const string &nameExpr,
     return entry;
 }
 
+Kernel loadKernel(const int device, const string &nameExpr) {
+    const string &cacheDirectory = getCacheDirectory();
+    if (cacheDirectory.empty()) return Kernel{nullptr, nullptr};
+
+    const string cacheFile = cacheDirectory + AF_PATH_SEPARATOR +
+                             getKernelCacheFilename(device, nameExpr);
+
+    CUmodule module   = nullptr;
+    CUfunction kernel = nullptr;
+
+    try {
+        std::ifstream in(cacheFile, std::ios::binary);
+        if (!in.is_open()) return Kernel{nullptr, nullptr};
+
+        in.exceptions(std::ios::failbit | std::ios::badbit);
+
+        size_t nameSize = 0;
+        in.read(reinterpret_cast<char *>(&nameSize), sizeof(nameSize));
+        string name;
+        name.resize(nameSize);
+        in.read(&name[0], nameSize);
+
+        size_t cubinHash = 0;
+        in.read(reinterpret_cast<char *>(&cubinHash), sizeof(cubinHash));
+        size_t cubinSize = 0;
+        in.read(reinterpret_cast<char *>(&cubinSize), sizeof(cubinSize));
+        vector<char> cubin(cubinSize);
+        in.read(cubin.data(), cubinSize);
+        in.close();
+
+        // check CUBIN binary data has not been corrupted
+        const size_t recomputedHash =
+            deterministicHash(cubin.data(), cubinSize);
+        if (recomputedHash != cubinHash) {
+            AF_ERROR("cached kernel data is corrupted", AF_ERR_LOAD_SYM);
+        }
+
+        CU_CHECK(cuModuleLoadDataEx(&module, cubin.data(), 0, 0, 0));
+        CU_CHECK(cuModuleGetFunction(&kernel, module, name.c_str()));
+
+        AF_TRACE("{{{:<30} : loaded from {} for {} }}", nameExpr, cacheFile,
+                 getDeviceProp(device).name);
+
+        return Kernel{module, kernel};
+    } catch (...) {
+        if (module != nullptr) { CU_CHECK(cuModuleUnload(module)); }
+        removeFile(cacheFile);
+        return Kernel{nullptr, nullptr};
+    }
+}
+
 kc_t &getCache(int device) {
     thread_local kc_t caches[DeviceManager::MAX_DEVICES];
     return caches[device];
 }
 
-Kernel findKernel(int device, const string nameExpr) {
-    kc_t &cache = getCache(device);
-
-    kc_t::iterator iter = cache.find(nameExpr);
-
-    return (iter == cache.end() ? Kernel{0, 0} : iter->second);
+void addKernelToCache(int device, const string &nameExpr, Kernel entry) {
+    getCache(device).emplace(nameExpr, entry);
 }
 
-void addKernelToCache(int device, const string nameExpr, Kernel entry) {
-    getCache(device).emplace(nameExpr, entry);
+Kernel findKernel(int device, const string &nameExpr) {
+    kc_t &cache = getCache(device);
+
+    auto iter = cache.find(nameExpr);
+    if (iter != cache.end()) return iter->second;
+
+#ifdef AF_CACHE_KERNELS_TO_DISK
+    Kernel kernel = loadKernel(device, nameExpr);
+    if (kernel.prog != nullptr && kernel.ker != nullptr) {
+        addKernelToCache(device, nameExpr, kernel);
+        return kernel;
+    }
+#endif
+
+    return Kernel{nullptr, nullptr};
 }
 
 string getOpEnumStr(af_op_t val) {
@@ -469,16 +577,16 @@ string toString(af_op_t val) {
 }
 
 template<>
-string toString(const char *str) {
-    return string(str);
+string toString(const char *val) {
+    return string(val);
 }
 
 template<>
-string toString(af_interp_type p) {
+string toString(af_interp_type val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_INTERP_NEAREST);
         CASE_STMT(AF_INTERP_LINEAR);
         CASE_STMT(AF_INTERP_BILINEAR);
@@ -495,11 +603,11 @@ string toString(af_interp_type p) {
 }
 
 template<>
-string toString(af_border_type p) {
+string toString(af_border_type val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_PAD_ZERO);
         CASE_STMT(AF_PAD_SYM);
         CASE_STMT(AF_PAD_CLAMP_TO_EDGE);
@@ -510,11 +618,11 @@ string toString(af_border_type p) {
 }
 
 template<>
-string toString(af_moment_type p) {
+string toString(af_moment_type val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_MOMENT_M00);
         CASE_STMT(AF_MOMENT_M01);
         CASE_STMT(AF_MOMENT_M10);
@@ -526,11 +634,11 @@ string toString(af_moment_type p) {
 }
 
 template<>
-string toString(af_match_type p) {
+string toString(af_match_type val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_SAD);
         CASE_STMT(AF_ZSAD);
         CASE_STMT(AF_LSAD);
@@ -539,47 +647,51 @@ string toString(af_match_type p) {
         CASE_STMT(AF_LSSD);
         CASE_STMT(AF_NCC);
         CASE_STMT(AF_ZNCC);
+        CASE_STMT(AF_SHD);
     }
 #undef CASE_STMT
     return retVal;
 }
 
 template<>
-string toString(af_flux_function p) {
+string toString(af_flux_function val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_FLUX_QUADRATIC);
         CASE_STMT(AF_FLUX_EXPONENTIAL);
+        CASE_STMT(AF_FLUX_DEFAULT);
     }
 #undef CASE_STMT
     return retVal;
 }
 
 template<>
-string toString(AF_BATCH_KIND p) {
+string toString(AF_BATCH_KIND val) {
     const char *retVal = NULL;
 #define CASE_STMT(v) \
     case v: retVal = #v; break
-    switch (p) {
+    switch (val) {
         CASE_STMT(AF_BATCH_NONE);
         CASE_STMT(AF_BATCH_LHS);
         CASE_STMT(AF_BATCH_RHS);
         CASE_STMT(AF_BATCH_SAME);
         CASE_STMT(AF_BATCH_DIFF);
+        CASE_STMT(AF_BATCH_UNSUPPORTED);
     }
 #undef CASE_STMT
     return retVal;
 }
 
 Kernel getKernel(const string &nameExpr, const string &source,
-                 const vector<TemplateArg> &targs,
+                 const vector<TemplateArg> &templateArgs,
                  const vector<string> &compileOpts) {
     vector<string> args;
-    args.reserve(targs.size());
+    args.reserve(templateArgs.size());
 
-    transform(targs.begin(), targs.end(), std::back_inserter(args),
+    transform(templateArgs.begin(), templateArgs.end(),
+              std::back_inserter(args),
               [](const TemplateArg &arg) -> string { return arg._tparam; });
 
     string tInstance = nameExpr + "<" + args[0];
@@ -589,7 +701,7 @@ Kernel getKernel(const string &nameExpr, const string &source,
     int device    = getActiveDeviceId();
     Kernel kernel = findKernel(device, tInstance);
 
-    if (kernel.prog == 0 || kernel.ker == 0) {
+    if (kernel.prog == nullptr || kernel.ker == nullptr) {
         kernel = buildKernel(device, tInstance, source, compileOpts);
         addKernelToCache(device, tInstance, kernel);
     }

@@ -35,21 +35,18 @@ class DefaultMemoryManager final : public common::memory::MemoryManagerBase {
         size_t bytes;
     };
 
-    using locked_t    = typename std::unordered_map<void *, locked_info>;
-    using locked_iter = typename locked_t::iterator;
-
-    using free_t    = std::unordered_map<size_t, std::vector<void *>>;
-    using free_iter = typename free_t::iterator;
+    using locked_t = typename std::unordered_map<void *, locked_info>;
+    using free_t   = std::unordered_map<size_t, std::vector<void *>>;
 
     struct memory_info {
         locked_t locked_map;
         free_t free_map;
 
-        size_t lock_bytes;
-        size_t lock_buffers;
+        size_t max_bytes;
         size_t total_bytes;
         size_t total_buffers;
-        size_t max_bytes;
+        size_t lock_bytes;
+        size_t lock_buffers;
 
         memory_info()
             // Calling getMaxMemorySize() here calls the virtual function
@@ -121,9 +118,10 @@ class DefaultMemoryManager final : public common::memory::MemoryManagerBase {
     float getMemoryPressure() override;
     bool jitTreeExceedsMemoryPressure(size_t bytes) override;
 
+    ~DefaultMemoryManager() = default;
+
    protected:
     DefaultMemoryManager()                                  = delete;
-    ~DefaultMemoryManager()                                 = default;
     DefaultMemoryManager(const DefaultMemoryManager &other) = delete;
     DefaultMemoryManager(DefaultMemoryManager &&other)      = default;
     DefaultMemoryManager &operator=(const DefaultMemoryManager &other) = delete;

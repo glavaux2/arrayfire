@@ -47,7 +47,7 @@ void setMemStepSize(size_t step_bytes) {
     memoryManager().setMemStepSize(step_bytes);
 }
 
-size_t getMemStepSize(void) { return memoryManager().getMemStepSize(); }
+size_t getMemStepSize() { return memoryManager().getMemStepSize(); }
 
 void signalMemoryCleanup() { memoryManager().signalMemoryCleanup(); }
 
@@ -63,8 +63,7 @@ template<typename T>
 uptr<T> memAlloc(const size_t &elements) {
     // TODO: make memAlloc aware of array shapes
     dim4 dims(elements);
-    size_t size = elements * sizeof(T);
-    void *ptr   = memoryManager().alloc(false, 1, dims.get(), sizeof(T));
+    void *ptr = memoryManager().alloc(false, 1, dims.get(), sizeof(T));
     return uptr<T>(static_cast<T *>(ptr), memFree<T>);
 }
 
@@ -76,17 +75,21 @@ void *memAllocUser(const size_t &bytes) {
 
 template<typename T>
 void memFree(T *ptr) {
-    memoryManager().unlock((void *)ptr, false);
+    memoryManager().unlock(static_cast<void *>(ptr), false);
 }
 
-void memFreeUser(void *ptr) { memoryManager().unlock((void *)ptr, true); }
+void memFreeUser(void *ptr) { memoryManager().unlock(ptr, true); }
 
-void memLock(const void *ptr) { memoryManager().userLock((void *)ptr); }
+void memLock(const void *ptr) {
+    memoryManager().userLock(const_cast<void *>(ptr));
+}
 
-void memUnlock(const void *ptr) { memoryManager().userUnlock((void *)ptr); }
+void memUnlock(const void *ptr) {
+    memoryManager().userUnlock(const_cast<void *>(ptr));
+}
 
 bool isLocked(const void *ptr) {
-    return memoryManager().isUserLocked((void *)ptr);
+    return memoryManager().isUserLocked(const_cast<void *>(ptr));
 }
 
 void deviceMemoryInfo(size_t *alloc_bytes, size_t *alloc_buffers,
@@ -105,7 +108,7 @@ T *pinnedAlloc(const size_t &elements) {
 
 template<typename T>
 void pinnedFree(T *ptr) {
-    pinnedMemoryManager().unlock((void *)ptr, false);
+    pinnedMemoryManager().unlock(static_cast<void *>(ptr), false);
 }
 
 #define INSTANTIATE(T)                                 \
@@ -135,7 +138,7 @@ void Allocator::shutdown() {
         try {
             cuda::setDevice(n);
             shutdownMemoryManager();
-        } catch (AfError err) {
+        } catch (const AfError &err) {
             continue;  // Do not throw any errors while shutting down
         }
     }

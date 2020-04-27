@@ -66,15 +66,13 @@ void convSep(Param out, const Param signal, const Param filter) {
                 << " -D FLEN=" << fLen << " -D LOCAL_MEM_SIZE=" << locSize
                 << " -D " << binOpName<af_mul_t>();
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D CPLX=1";
         } else {
             options << " -D CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *ker_strs[] = {ops_cl, convolve_separable_cl};
         const int ker_lens[]   = {ops_cl_len, convolve_separable_cl_len};

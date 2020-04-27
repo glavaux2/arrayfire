@@ -60,11 +60,11 @@ CONSTEXPR_DH native_half_t int2half_impl(T value) noexcept {
     uint16_t bits = S << 15;
     if (value > 0xFFFF) {
         if (R == std::round_toward_infinity)
-            bits |= 0x7C00 - S;
+            bits |= (0x7C00 - S);
         else if (R == std::round_toward_neg_infinity)
-            bits |= 0x7BFF + S;
+            bits |= (0x7BFF + S);
         else
-            bits |= 0x7BFF + (R != std::round_toward_zero);
+            bits |= (0x7BFF + (R != std::round_toward_zero));
     } else if (value) {
         uint32_t m = value, exp = 24;
         for (; m < 0x400; m <<= 1, --exp)
@@ -262,10 +262,10 @@ CONSTEXPR_DH native_half_t float2half_impl(double value) {
                (0x3FF & -static_cast<unsigned>((bits & 0xFFFFFFFFFFFFF) != 0));
     if (exp > 1038) {
         if (R == std::round_toward_infinity)
-            return hbits | 0x7C00 - (hbits >> 15);
+            return hbits | (0x7C00 - (hbits >> 15));
         if (R == std::round_toward_neg_infinity)
-            return hbits | 0x7BFF + (hbits >> 15);
-        return hbits | 0x7BFF + (R != std::round_toward_zero);
+            return hbits | (0x7BFF + (hbits >> 15));
+        return hbits | (0x7BFF + (R != std::round_toward_zero));
     }
     int g, s = lo != 0;
     if (exp > 1008) {
@@ -695,7 +695,7 @@ CONSTEXPR_DH inline float half2float(native_half_t value) noexcept {
 ///           value
 /// \param value The value to convert to integer
 template<std::float_round_style R, bool E, typename T>
-constexpr T half2int(native_half_t value) {
+T half2int(native_half_t value) {
     static_assert(std::is_integral<T>::value,
                   "half to int conversion only supports builtin integer types");
     unsigned int e = value & 0x7FFF;
@@ -990,6 +990,10 @@ CONSTEXPR_DH static inline bool operator<(common::half lhs,
 
 #ifndef __CUDA_ARCH__
 std::ostream& operator<<(std::ostream& os, const half& val);
+
+static inline std::string to_string(const half& val) {
+    return std::to_string(static_cast<float>(val));
+}
 
 static inline std::string to_string(const half&& val) {
     return std::to_string(static_cast<float>(val));

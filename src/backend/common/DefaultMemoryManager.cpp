@@ -20,14 +20,11 @@
 #include <string>
 #include <vector>
 
-using std::make_unique;
 using std::max;
 using std::move;
 using std::stoi;
 using std::string;
 using std::vector;
-
-using spdlog::logger;
 
 namespace common {
 
@@ -37,7 +34,7 @@ DefaultMemoryManager::getCurrentMemoryInfo() {
 }
 
 void DefaultMemoryManager::cleanDeviceMemoryManager(int device) {
-    if (this->debug_mode) return;
+    if (this->debug_mode) { return; }
 
     // This vector is used to store the pointers which will be deleted by
     // the memory manager. We are using this to avoid calling free while
@@ -48,7 +45,7 @@ void DefaultMemoryManager::cleanDeviceMemoryManager(int device) {
     {
         lock_guard_t lock(this->memory_mutex);
         // Return if all buffers are locked
-        if (current.total_buffers == current.lock_buffers) return;
+        if (current.total_buffers == current.lock_buffers) { return; }
         free_ptrs.reserve(current.free_map.size());
 
         for (auto &kv : current.free_map) {
@@ -75,18 +72,18 @@ DefaultMemoryManager::DefaultMemoryManager(int num_devices,
                                            unsigned max_buffers, bool debug)
     : mem_step_size(1024)
     , max_buffers(max_buffers)
-    , memory(num_devices)
-    , debug_mode(debug) {
+    , debug_mode(debug)
+    , memory(num_devices) {
     // Check for environment variables
 
     // Debug mode
     string env_var = getEnvVar("AF_MEM_DEBUG");
-    if (!env_var.empty()) this->debug_mode = env_var[0] != '0';
-    if (this->debug_mode) mem_step_size = 1;
+    if (!env_var.empty()) { this->debug_mode = env_var[0] != '0'; }
+    if (this->debug_mode) { mem_step_size = 1; }
 
     // Max Buffer count
     env_var = getEnvVar("AF_MAX_BUFFERS");
-    if (!env_var.empty()) this->max_buffers = max(1, stoi(env_var));
+    if (!env_var.empty()) { this->max_buffers = max(1, stoi(env_var)); }
 }
 
 void DefaultMemoryManager::initialize() { this->setMaxMemorySize(); }
@@ -96,7 +93,7 @@ void DefaultMemoryManager::shutdown() { signalMemoryCleanup(); }
 void DefaultMemoryManager::addMemoryManagement(int device) {
     // If there is a memory manager allocated for this device id, we might
     // as well use it and the buffers allocated for it
-    if (static_cast<size_t>(device) < memory.size()) return;
+    if (static_cast<size_t>(device) < memory.size()) { return; }
 
     // Assuming, device need not be always the next device Lets resize to
     // current_size + device + 1 +1 is to account for device being 0-based
@@ -105,8 +102,9 @@ void DefaultMemoryManager::addMemoryManagement(int device) {
 }
 
 void DefaultMemoryManager::removeMemoryManagement(int device) {
-    if ((size_t)device >= memory.size())
+    if (static_cast<size_t>(device) >= memory.size()) {
         AF_ERROR("No matching device found", AF_ERR_ARG);
+    }
 
     // Do garbage collection for the device and leave the memory::memory_info
     // struct from the memory vector intact
@@ -120,8 +118,9 @@ void DefaultMemoryManager::setMaxMemorySize() {
         // memsize returned 0, then use 1GB
         size_t memsize = this->getMaxMemorySize(n);
         memory[n].max_bytes =
-            memsize == 0 ? ONE_GB
-                         : max(memsize * 0.75, (double)(memsize - ONE_GB));
+            memsize == 0
+                ? ONE_GB
+                : max(memsize * 0.75, static_cast<double>(memsize - ONE_GB));
     }
 }
 
@@ -166,13 +165,14 @@ void *DefaultMemoryManager::alloc(bool user_lock, const unsigned ndims,
             }
 
             lock_guard_t lock(this->memory_mutex);
-            free_iter iter = current.free_map.find(alloc_bytes);
-
-            if (iter != current.free_map.end() && !iter->second.empty()) {
+            auto free_buffer_iter = current.free_map.find(alloc_bytes);
+            if (free_buffer_iter != current.free_map.end() &&
+                !free_buffer_iter->second.empty()) {
                 // Delete existing buffer info and underlying event
                 // Set to existing in from free map
-                ptr = iter->second.back();
-                iter->second.pop_back();
+                vector<void *> &free_buffer_vector = free_buffer_iter->second;
+                ptr                                = free_buffer_vector.back();
+                free_buffer_vector.pop_back();
                 current.locked_map[ptr] = info;
                 current.lock_bytes += alloc_bytes;
                 current.lock_buffers++;
@@ -186,7 +186,7 @@ void *DefaultMemoryManager::alloc(bool user_lock, const unsigned ndims,
                 ptr = this->nativeAlloc(alloc_bytes);
             } catch (const AfError &ex) {
                 // If out of memory, run garbage collect and try again
-                if (ex.getError() != AF_ERR_NO_MEM) throw;
+                if (ex.getError() != AF_ERR_NO_MEM) { throw; }
                 this->signalMemoryCleanup();
                 ptr = this->nativeAlloc(alloc_bytes);
             }
@@ -204,11 +204,11 @@ void *DefaultMemoryManager::alloc(bool user_lock, const unsigned ndims,
 }
 
 size_t DefaultMemoryManager::allocated(void *ptr) {
-    if (!ptr) return 0;
+    if (!ptr) { return 0; }
     memory_info &current = this->getCurrentMemoryInfo();
-    locked_iter iter     = current.locked_map.find((void *)ptr);
-    if (iter == current.locked_map.end()) return 0;
-    return (iter->second).bytes;
+    auto locked_iter     = current.locked_map.find(ptr);
+    if (locked_iter == current.locked_map.end()) { return 0; }
+    return (locked_iter->second).bytes;
 }
 
 void DefaultMemoryManager::unlock(void *ptr, bool user_unlock) {
@@ -221,39 +221,42 @@ void DefaultMemoryManager::unlock(void *ptr, bool user_unlock) {
         lock_guard_t lock(this->memory_mutex);
         memory_info &current = this->getCurrentMemoryInfo();
 
-        locked_iter iter = current.locked_map.find((void *)ptr);
-
-        // Pointer not found in locked map
-        if (iter == current.locked_map.end()) {
+        auto locked_buffer_iter = current.locked_map.find(ptr);
+        if (locked_buffer_iter == current.locked_map.end()) {
+            // Pointer not found in locked map
             // Probably came from user, just free it
             freed_ptr.reset(ptr);
             return;
         }
+        locked_info &locked_buffer_info = locked_buffer_iter->second;
+        void *locked_buffer_ptr         = locked_buffer_iter->first;
 
         if (user_unlock) {
-            (iter->second).user_lock = false;
+            locked_buffer_info.user_lock = false;
         } else {
-            (iter->second).manager_lock = false;
+            locked_buffer_info.manager_lock = false;
         }
 
         // Return early if either one is locked
-        if ((iter->second).user_lock || (iter->second).manager_lock) { return; }
+        if (locked_buffer_info.user_lock || locked_buffer_info.manager_lock) {
+            return;
+        }
 
-        size_t bytes = iter->second.bytes;
-        current.lock_bytes -= iter->second.bytes;
+        size_t bytes = locked_buffer_info.bytes;
+        current.lock_bytes -= locked_buffer_info.bytes;
         current.lock_buffers--;
 
         if (this->debug_mode) {
             // Just free memory in debug mode
-            if ((iter->second).bytes > 0) {
-                freed_ptr.reset(iter->first);
+            if (locked_buffer_info.bytes > 0) {
+                freed_ptr.reset(locked_buffer_ptr);
                 current.total_buffers--;
-                current.total_bytes -= iter->second.bytes;
+                current.total_bytes -= locked_buffer_info.bytes;
             }
         } else {
             current.free_map[bytes].emplace_back(ptr);
         }
-        current.locked_map.erase(iter);
+        current.locked_map.erase(locked_buffer_iter);
     }
 }
 
@@ -262,6 +265,7 @@ void DefaultMemoryManager::signalMemoryCleanup() {
 }
 
 void DefaultMemoryManager::printInfo(const char *msg, const int device) {
+    UNUSED(device);
     const memory_info &current = this->getCurrentMemoryInfo();
 
     printf("%s\n", msg);
@@ -274,13 +278,14 @@ void DefaultMemoryManager::printInfo(const char *msg, const int device) {
     for (auto &kv : current.locked_map) {
         const char *status_mngr = "Yes";
         const char *status_user = "Unknown";
-        if (kv.second.user_lock)
+        if (kv.second.user_lock) {
             status_user = "Yes";
-        else
+        } else {
             status_user = " No";
+        }
 
         const char *unit = "KB";
-        double size      = (double)(kv.second.bytes) / 1024;
+        double size      = static_cast<double>(kv.second.bytes) / 1024;
         if (size >= 1024) {
             size = size / 1024;
             unit = "MB";
@@ -295,7 +300,7 @@ void DefaultMemoryManager::printInfo(const char *msg, const int device) {
         const char *status_user = "No";
 
         const char *unit = "KB";
-        double size      = (double)(kv.first) / 1024;
+        double size      = static_cast<double>(kv.first) / 1024;
         if (size >= 1024) {
             size = size / 1024;
             unit = "MB";
@@ -314,10 +319,10 @@ void DefaultMemoryManager::usageInfo(size_t *alloc_bytes, size_t *alloc_buffers,
                                      size_t *lock_bytes, size_t *lock_buffers) {
     const memory_info &current = this->getCurrentMemoryInfo();
     lock_guard_t lock(this->memory_mutex);
-    if (alloc_bytes) *alloc_bytes = current.total_bytes;
-    if (alloc_buffers) *alloc_buffers = current.total_buffers;
-    if (lock_bytes) *lock_bytes = current.lock_bytes;
-    if (lock_buffers) *lock_buffers = current.lock_buffers;
+    if (alloc_bytes) { *alloc_bytes = current.total_bytes; }
+    if (alloc_buffers) { *alloc_buffers = current.total_buffers; }
+    if (lock_bytes) { *lock_bytes = current.lock_bytes; }
+    if (lock_buffers) { *lock_buffers = current.lock_buffers; }
 }
 
 void DefaultMemoryManager::userLock(const void *ptr) {
@@ -325,13 +330,13 @@ void DefaultMemoryManager::userLock(const void *ptr) {
 
     lock_guard_t lock(this->memory_mutex);
 
-    locked_iter iter = current.locked_map.find(const_cast<void *>(ptr));
-    if (iter != current.locked_map.end()) {
-        iter->second.user_lock = true;
+    auto locked_iter = current.locked_map.find(const_cast<void *>(ptr));
+    if (locked_iter != current.locked_map.end()) {
+        locked_iter->second.user_lock = true;
     } else {
         locked_info info = {false, true, 100};  // This number is not relevant
 
-        current.locked_map[(void *)ptr] = info;
+        current.locked_map[const_cast<void *>(ptr)] = info;
     }
 }
 
@@ -342,12 +347,9 @@ void DefaultMemoryManager::userUnlock(const void *ptr) {
 bool DefaultMemoryManager::isUserLocked(const void *ptr) {
     memory_info &current = this->getCurrentMemoryInfo();
     lock_guard_t lock(this->memory_mutex);
-    locked_iter iter = current.locked_map.find(const_cast<void *>(ptr));
-    if (iter != current.locked_map.end()) {
-        return iter->second.user_lock;
-    } else {
-        return false;
-    }
+    auto locked_iter = current.locked_map.find(const_cast<void *>(ptr));
+    if (locked_iter == current.locked_map.end()) { return false; }
+    return locked_iter->second.user_lock;
 }
 
 size_t DefaultMemoryManager::getMemStepSize() {

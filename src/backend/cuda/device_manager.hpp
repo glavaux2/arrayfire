@@ -37,7 +37,7 @@ bool checkDeviceWithRuntime(int runtime, std::pair<int, int> compute);
 
 class DeviceManager {
    public:
-    static const size_t MAX_DEVICES = 16;
+    static const int MAX_DEVICES = 16;
 
     static bool checkGraphicsInteropCapability();
 
@@ -74,7 +74,7 @@ class DeviceManager {
 
     friend std::string getPlatformInfo() noexcept;
 
-    friend std::string getDriverVersion();
+    friend std::string getDriverVersion() noexcept;
 
     friend std::string getCUDARuntimeVersion() noexcept;
 
@@ -112,7 +112,7 @@ class DeviceManager {
     void checkCudaVsDriverVersion();
     void sortDevices(sort_mode mode = flops);
 
-    int setActiveDevice(int device, int native = -1);
+    int setActiveDevice(int device, int nId = -1);
 
     std::shared_ptr<spdlog::logger> logger;
 
@@ -120,7 +120,7 @@ class DeviceManager {
     std::vector<std::pair<int, int>> devJitComputes;
 
     int nDevices;
-    cudaStream_t streams[MAX_DEVICES];
+    cudaStream_t streams[MAX_DEVICES]{};
 
     std::unique_ptr<graphics::ForgeManager> fgMngr;
 

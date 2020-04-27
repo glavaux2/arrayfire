@@ -80,9 +80,9 @@ class CPUInfo {
     // Attributes
     std::string mVendorId;
     std::string mModelName;
-    int mNumSMT;
-    int mNumCores;
-    int mNumLogCpus;
+    unsigned mNumSMT;
+    unsigned mNumCores;
+    unsigned mNumLogCpus;
     bool mIsHTT;
 };
 
@@ -90,10 +90,10 @@ namespace cpu {
 
 class DeviceManager {
    public:
-    static const int MAX_QUEUES           = 1;
-    static const int NUM_DEVICES          = 1;
-    static const int ACTIVE_DEVICE_ID     = 0;
-    static const bool IS_DOUBLE_SUPPORTED = true;
+    static const int MAX_QUEUES            = 1;
+    static const int NUM_DEVICES           = 1;
+    static const unsigned ACTIVE_DEVICE_ID = 0;
+    static const bool IS_DOUBLE_SUPPORTED  = true;
 
     // TODO(umar): Half is not supported for BLAS and FFT on x86_64
     static const bool IS_HALF_SUPPORTED = true;

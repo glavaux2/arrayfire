@@ -84,10 +84,7 @@ void launch_reduce_blocks_dim_by_key(cl::Buffer *reduced_block_sizes,
                 << " -D init=" << toNumStr(reduce.init()) << " -D "
                 << binOpName<op>() << " -D CPLX=" << af::iscplx<Ti>();
 
-        if (std::is_same<Ti, double>::value ||
-            std::is_same<Ti, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<Ti>();
 
         const char *ker_strs[] = {ops_cl, reduce_blocks_by_key_dim_cl};
         const int ker_lens[]   = {ops_cl_len, reduce_blocks_by_key_dim_cl_len};
@@ -148,10 +145,7 @@ void launch_reduce_blocks_by_key(cl::Buffer *reduced_block_sizes,
                 << " -D init=" << toNumStr(reduce.init()) << " -D "
                 << binOpName<op>() << " -D CPLX=" << af::iscplx<Ti>();
 
-        if (std::is_same<Ti, double>::value ||
-            std::is_same<Ti, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<Ti>();
 
         const char *ker_strs[] = {ops_cl, reduce_blocks_by_key_first_cl};
         const int ker_lens[] = {ops_cl_len, reduce_blocks_by_key_first_cl_len};
@@ -208,10 +202,7 @@ void launch_final_boundary_reduce(cl::Buffer *reduced_block_sizes,
                 << " -D init=" << toNumStr(reduce.init()) << " -D "
                 << binOpName<op>() << " -D CPLX=" << af::iscplx<To>();
 
-        if (std::is_same<To, double>::value ||
-            std::is_same<To, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<To>();
 
         const char *ker_strs[] = {ops_cl, reduce_by_key_boundary_cl};
         const int ker_lens[]   = {ops_cl_len, reduce_by_key_boundary_cl_len};
@@ -264,10 +255,7 @@ void launch_final_boundary_reduce_dim(cl::Buffer *reduced_block_sizes,
                 << " -D init=" << toNumStr(reduce.init()) << " -D "
                 << binOpName<op>() << " -D CPLX=" << af::iscplx<To>();
 
-        if (std::is_same<To, double>::value ||
-            std::is_same<To, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<To>();
 
         const char *ker_strs[] = {ops_cl, reduce_by_key_boundary_dim_cl};
         const int ker_lens[] = {ops_cl_len, reduce_by_key_boundary_dim_cl_len};
@@ -310,17 +298,12 @@ void launch_compact(cl::Buffer *reduced_block_sizes, Param keys_out,
     kc_entry_t entry = kernelCache(device, ref_name);
 
     if (entry.prog == 0 && entry.ker == 0) {
-        ToNumStr<To> toNumStr;
-
         std::ostringstream options;
         options << " -D To=" << dtype_traits<To>::getName()
                 << " -D Tk=" << dtype_traits<Tk>::getName() << " -D T=To"
                 << " -D DIMX=" << threads_x << " -D CPLX=" << af::iscplx<To>();
 
-        if (std::is_same<To, double>::value ||
-            std::is_same<To, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<To>();
 
         const char *ker_strs[] = {ops_cl, reduce_by_key_compact_cl};
         const int ker_lens[]   = {ops_cl_len, reduce_by_key_compact_cl_len};
@@ -364,18 +347,13 @@ void launch_compact_dim(cl::Buffer *reduced_block_sizes, Param keys_out,
     kc_entry_t entry = kernelCache(device, ref_name);
 
     if (entry.prog == 0 && entry.ker == 0) {
-        ToNumStr<To> toNumStr;
-
         std::ostringstream options;
         options << " -D To=" << dtype_traits<To>::getName()
                 << " -D Tk=" << dtype_traits<Tk>::getName() << " -D T=To"
                 << " -D DIMX=" << threads_x << " -D DIM=" << dim
                 << " -D CPLX=" << af::iscplx<To>();
 
-        if (std::is_same<To, double>::value ||
-            std::is_same<To, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<To>();
 
         const char *ker_strs[] = {ops_cl, reduce_by_key_compact_dim_cl};
         const int ker_lens[]   = {ops_cl_len, reduce_by_key_compact_dim_cl_len};

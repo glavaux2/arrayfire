@@ -43,7 +43,7 @@ using af::dim4;
 using std::shared_ptr;
 
 template<typename T>
-void evalMultiple(std::vector<Array<T> *> arrays);
+void evalMultiple(std::vector<Array<T> *> array_ptrs);
 
 // Creates a new Array object on the heap and returns a reference to it.
 template<typename T>
@@ -144,8 +144,8 @@ class Array {
 
     INFO_FUNC(const af_dtype &, getType)
     INFO_FUNC(const af::dim4 &, strides)
-    INFO_FUNC(size_t, elements)
-    INFO_FUNC(size_t, ndims)
+    INFO_FUNC(dim_t, elements)
+    INFO_FUNC(dim_t, ndims)
     INFO_FUNC(const af::dim4 &, dims)
     INFO_FUNC(int, getDevId)
 

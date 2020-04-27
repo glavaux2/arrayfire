@@ -60,15 +60,13 @@ void sparseArithOpCSR(Param out, const Param values, const Param rowIdx,
         options << " -D T=" << dtype_traits<T>::getName();
         options << " -D OP=" << getOpString<op>();
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D IS_CPLX=1";
         } else {
             options << " -D IS_CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *ker_strs[] = {sparse_arith_common_cl, sparse_arith_csr_cl};
         const int ker_lens[]   = {sparse_arith_common_cl_len,
@@ -113,15 +111,13 @@ void sparseArithOpCOO(Param out, const Param values, const Param rowIdx,
         options << " -D T=" << dtype_traits<T>::getName();
         options << " -D OP=" << getOpString<op>();
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D IS_CPLX=1";
         } else {
             options << " -D IS_CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *ker_strs[] = {sparse_arith_common_cl, sparse_arith_coo_cl};
         const int ker_lens[]   = {sparse_arith_common_cl_len,
@@ -166,15 +162,13 @@ void sparseArithOpCSR(Param values, Param rowIdx, Param colIdx, const Param rhs,
         options << " -D T=" << dtype_traits<T>::getName();
         options << " -D OP=" << getOpString<op>();
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D IS_CPLX=1";
         } else {
             options << " -D IS_CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *ker_strs[] = {sparse_arith_common_cl, sparse_arith_csr_cl};
         const int ker_lens[]   = {sparse_arith_common_cl_len,
@@ -218,15 +212,13 @@ void sparseArithOpCOO(Param values, Param rowIdx, Param colIdx, const Param rhs,
         options << " -D T=" << dtype_traits<T>::getName();
         options << " -D OP=" << getOpString<op>();
 
-        if ((af_dtype)dtype_traits<T>::af_type == c32 ||
-            (af_dtype)dtype_traits<T>::af_type == c64) {
+        if (static_cast<af_dtype>(dtype_traits<T>::af_type) == c32 ||
+            static_cast<af_dtype>(dtype_traits<T>::af_type) == c64) {
             options << " -D IS_CPLX=1";
         } else {
             options << " -D IS_CPLX=0";
         }
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *ker_strs[] = {sparse_arith_common_cl, sparse_arith_coo_cl};
         const int ker_lens[]   = {sparse_arith_common_cl_len,
@@ -316,9 +308,7 @@ void ssArithCSR(Param oVals, Param oColIdx, const Param oRowIdx, const uint M,
                 << af::scalar_to_option(iden_val) << ")";
 
         options << " -D IS_CPLX=" << common::is_complex<T>::value;
-        if (std::is_same<T, double>::value || std::is_same<T, cdouble>::value) {
-            options << " -D USE_DOUBLE";
-        }
+        options << getTypeBuildDefinition<T>();
 
         const char *kerStrs[] = {sparse_arith_common_cl, sp_sp_arith_csr_cl};
         const int kerLens[]   = {sparse_arith_common_cl_len,

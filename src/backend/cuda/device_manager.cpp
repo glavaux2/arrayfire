@@ -18,7 +18,6 @@
 #include <common/defines.hpp>
 #include <common/graphics_common.hpp>
 #include <common/host_memory.hpp>
-#include <common/util.hpp>
 #include <cublas_v2.h>  // needed for af/cuda.h
 #include <device_manager.hpp>
 #include <driver.h>
@@ -32,6 +31,7 @@
 // cuda_gl_interop.h does not include OpenGL headers for ARM
 // __gl_h_ should be defined by glad.h inclusion
 #include <cuda_gl_interop.h>
+#include <utility.hpp>
 
 #include <nvrtc.h>
 
@@ -94,10 +94,11 @@ bool checkDeviceWithRuntime(int runtime, pair<int, int> compute) {
     }
 
     if (rt->major >= compute.first) {
-        if (rt->major == compute.first)
+        if (rt->major == compute.first) {
             return rt->minor >= compute.second;
-        else
+        } else {
             return true;
+        }
     } else {
         return false;
     }
@@ -106,7 +107,8 @@ bool checkDeviceWithRuntime(int runtime, pair<int, int> compute) {
 /// Check for compatible compute version based on runtime cuda toolkit version
 void checkAndSetDevMaxCompute(pair<int, int> &prop) {
     auto originalCompute = prop;
-    int rtCudaVer        = 0;
+    UNUSED(originalCompute);
+    int rtCudaVer = 0;
     CUDA_CHECK(cudaRuntimeGetVersion(&rtCudaVer));
     auto tkitMaxCompute = find_if(
         begin(Toolkit2MaxCompute), end(Toolkit2MaxCompute),
@@ -155,7 +157,7 @@ pair<int, int> getComputeCapability(const int device) {
 }
 
 // pulled from CUTIL from CUDA SDK
-static inline int compute2cores(int major, int minor) {
+static inline int compute2cores(unsigned major, unsigned minor) {
     struct {
         int compute;  // 0xMm (hex), M = major version, m = minor version
         int cores;
@@ -167,7 +169,9 @@ static inline int compute2cores(int major, int minor) {
     };
 
     for (int i = 0; gpus[i].compute != -1; ++i) {
-        if (gpus[i].compute == (major << 4) + minor) return gpus[i].cores;
+        if (static_cast<unsigned>(gpus[i].compute) == (major << 4U) + minor) {
+            return gpus[i].cores;
+        }
     }
     return 0;
 }
@@ -263,7 +267,7 @@ bool DeviceManager::checkGraphicsInteropCapability() {
 }
 
 DeviceManager &DeviceManager::getInstance() {
-    static DeviceManager *my_instance = new DeviceManager();
+    static auto *my_instance = new DeviceManager();
     return *my_instance;
 }
 
@@ -301,7 +305,7 @@ void DeviceManager::setMemoryManagerPinned(
     // pinnedMemoryManager()
     pinnedMemoryManager();
     // Calls shutdown() on the existing memory manager.
-    if (pinnedMemoryManager) { pinnedMemManager->shutdownAllocator(); }
+    if (pinnedMemManager) { pinnedMemManager->shutdownAllocator(); }
     // Set the backend memory manager for this new manager to register native
     // functions correctly.
     pinnedMemManager = std::move(newMgr);
@@ -475,9 +479,8 @@ void DeviceManager::checkCudaVsDriverVersion() {
 /// are assuming that the initilization is done in the main thread.
 void initNvrtc() {
     nvrtcProgram prog;
-    auto err = nvrtcCreateProgram(&prog, " ", "dummy", 0, nullptr, nullptr);
+    nvrtcCreateProgram(&prog, " ", "dummy", 0, nullptr, nullptr);
     nvrtcDestroyProgram(&prog);
-    return;
 }
 
 DeviceManager::DeviceManager()
@@ -501,7 +504,7 @@ DeviceManager::DeviceManager()
         int cudaMajorVer = cudaRtVer / 1000;
 
         for (int i = 0; i < nDevices; i++) {
-            cudaDevice_t dev;
+            cudaDevice_t dev{};
             CUDA_CHECK(cudaGetDeviceProperties(&dev.prop, i));
             if (dev.prop.major < getMinSupportedCompute(cudaMajorVer)) {
                 AF_TRACE("Unsuppored device: {}", dev.prop.name);
@@ -539,8 +542,8 @@ DeviceManager::DeviceManager()
 
     // Initialize all streams to 0.
     // Streams will be created in setActiveDevice()
-    for (size_t i = 0; i < MAX_DEVICES; i++) {
-        streams[i] = (cudaStream_t)0;
+    for (int i = 0; i < MAX_DEVICES; i++) {
+        streams[i] = static_cast<cudaStream_t>(0);
         if (i < nDevices) {
             auto prop =
                 make_pair(cuDevices[i].prop.major, cuDevices[i].prop.minor);
@@ -601,11 +604,11 @@ int DeviceManager::setActiveDevice(int device, int nId) {
 
     int numDevices = cuDevices.size();
 
-    if (device >= numDevices) return -1;
+    if (device >= numDevices) { return -1; }
 
     int old = getActiveDeviceId();
 
-    if (nId == -1) nId = getDeviceNativeId(device);
+    if (nId == -1) { nId = getDeviceNativeId(device); }
 
     cudaError_t err = cudaSetDevice(nId);
 
@@ -645,7 +648,7 @@ int DeviceManager::setActiveDevice(int device, int nId) {
         // otherwise fails streamCreate with this error.
         // All other errors will error out
         device++;
-        if (device >= numDevices) break;
+        if (device >= numDevices) { break; }
 
         // Can't call getNativeId here as it will cause an infinite loop with
         // the constructor

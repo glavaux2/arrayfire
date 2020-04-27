@@ -14,6 +14,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wignored-qualifiers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Wcatch-value="
 #include <CL/cl2.hpp>
 #pragma GCC diagnostic pop
 
@@ -53,9 +54,7 @@ class GraphicsResourceManager;
 struct kc_entry_t;  // kernel cache entry
 class PlanCache;    // clfft
 
-static inline bool verify_present(std::string pname, const char* ref) {
-    return pname.find(ref) != std::string::npos;
-}
+bool verify_present(const std::string& pname, const std::string ref);
 
 int getBackend();
 
@@ -63,7 +62,7 @@ std::string getDeviceInfo() noexcept;
 
 int getDeviceCount() noexcept;
 
-int getActiveDeviceId();
+unsigned getActiveDeviceId();
 
 unsigned getMaxJitSize();
 
@@ -96,9 +95,9 @@ std::string getPlatformName(const cl::Device& device);
 
 int setDevice(int device);
 
-void addDeviceContext(cl_device_id dev, cl_context cxt, cl_command_queue que);
+void addDeviceContext(cl_device_id dev, cl_context ctx, cl_command_queue que);
 
-void setDeviceContext(cl_device_id dev, cl_context cxt);
+void setDeviceContext(cl_device_id dev, cl_context ctx);
 
 void removeDeviceContext(cl_device_id dev, cl_context ctx);
 
@@ -137,22 +136,7 @@ void removeKernelFromCache(int device, const std::string& key);
 
 kc_entry_t kernelCache(int device, const std::string& key);
 
-static afcl::platform getPlatformEnum(cl::Device dev) {
-    std::string pname = getPlatformName(dev);
-    if (verify_present(pname, "AMD"))
-        return AFCL_PLATFORM_AMD;
-    else if (verify_present(pname, "NVIDIA"))
-        return AFCL_PLATFORM_NVIDIA;
-    else if (verify_present(pname, "INTEL"))
-        return AFCL_PLATFORM_INTEL;
-    else if (verify_present(pname, "APPLE"))
-        return AFCL_PLATFORM_APPLE;
-    else if (verify_present(pname, "BEIGNET"))
-        return AFCL_PLATFORM_BEIGNET;
-    else if (verify_present(pname, "POCL"))
-        return AFCL_PLATFORM_POCL;
-    return AFCL_PLATFORM_UNKNOWN;
-}
+afcl::platform getPlatformEnum(cl::Device dev);
 
 void setActiveContext(int device);
 

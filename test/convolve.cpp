@@ -909,7 +909,7 @@ float tolerance<double>() {
 
 template<>
 float tolerance<half_float::half>() {
-    return 3e-2;
+    return 4e-2;
 }
 
 template<typename T>
@@ -941,8 +941,6 @@ void convolve2stridedTest(string pTestFile, dim4 stride, dim4 padding,
                                    dilation.ndims(), dilation.get()));
 
     vector<T> &currGoldBar = tests[0];
-
-    size_t nElems = currGoldBar.size();
 
     dim_t expectedDim0 =
         1 + (sDims[0] + 2 * padding[0] - (((fDims[0] - 1) * dilation[0]) + 1)) /
@@ -1168,4 +1166,15 @@ TYPED_TEST(ConvolveStrided, Gradient_sig81032_filt3334_s11_p11_d11) {
     convolve2GradientTest<TypeParam>(
         string(TEST_DIR "/convolve/sig81032_filt3334_s11_p11_d11.test"),
         dim4(1, 1), dim4(1, 1), dim4(1, 1));
+}
+
+TEST(ConvolveNN, ZeroPadding_Issue2817) {
+    array signal = constant(1.f, 5, 5);
+    array filter = constant(1 / 9.f, 3, 3);
+    dim4 strides(1, 1), dilation(1, 1);
+    dim4 padding(0, 0, 1, 1);
+
+    array convolved = convolve2NN(signal, filter, strides, padding, dilation);
+    ASSERT_EQ(sum<float>(abs(signal(seq(1, 3), seq(1, 3)) - convolved)) < 1E-5,
+              true);
 }
