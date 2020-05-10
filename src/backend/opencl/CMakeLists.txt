@@ -189,6 +189,7 @@ target_sources(afopencl
     reorder.hpp
     resize.cpp
     resize.hpp
+    reshape.cpp
     rotate.cpp
     rotate.hpp
     scalar.hpp
@@ -490,9 +491,11 @@ if(LAPACK_FOUND OR MKL_Shared_FOUND)
     dependency_check(MKL_Shared_FOUND "MKL not found")
     target_compile_definitions(afopencl PRIVATE USE_MKL)
 
-    target_link_libraries(afopencl
-      PRIVATE
-        MKL::Shared)
+    if(AF_WITH_STATIC_MKL)
+        target_link_libraries(afopencl PRIVATE MKL::Static)
+    else()
+        target_link_libraries(afopencl PRIVATE MKL::Shared)
+    endif()
   else()
     dependency_check(OpenCL_FOUND "OpenCL not found.")
 

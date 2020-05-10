@@ -7,12 +7,13 @@
  * http://arrayfire.com/licenses/BSD-3-Clause
  ********************************************************/
 
-#define GTEST_LINKED_AS_SHARED_LIBRARY 1
 #include <gtest/gtest.h>
 #include <testHelpers.hpp>
 #include <af/arith.h>
 #include <af/array.h>
 #include <af/data.h>
+#include <af/device.h>
+#include <af/random.h>
 
 #include <cfenv>
 #include <cmath>
@@ -287,6 +288,26 @@ BITOP(bitand, uintl, &)
 BITOP(bitxor, uintl, ^)
 BITOP(bitshiftl, uintl, <<)
 BITOP(bitshiftr, uintl, >>)
+
+#define UBITOP(func, T)                                     \
+    TEST(BinaryTests, Test_##func##_##T) {                  \
+        af_dtype ty   = (af_dtype)dtype_traits<T>::af_type; \
+        const T vala  = 127u;                               \
+        const T valc  = ~vala;                              \
+        const int num = 10;                                 \
+        af::array a   = af::constant(vala, num, ty);        \
+        af::array b   = af::constant(valc, num, ty);        \
+        af::array c   = ~a;                                 \
+        ASSERT_ARRAYS_EQ(c, b);                             \
+    }
+
+UBITOP(bitnot, int)
+UBITOP(bitnot, uint)
+UBITOP(bitnot, intl)
+UBITOP(bitnot, uintl)
+UBITOP(bitnot, uchar)
+UBITOP(bitnot, short)
+UBITOP(bitnot, ushort)
 
 TEST(BinaryTests, Test_pow_cfloat_float) {
     af::array a        = randgen(num, c32);

@@ -13,6 +13,7 @@
 #include <cast.hpp>
 #include <common/err_common.hpp>
 #include <common/half.hpp>
+#include <common/traits.hpp>
 #include <copy.hpp>
 #include <math.hpp>
 #include <types.hpp>
@@ -59,29 +60,10 @@ const detail::Array<T> &getArray(const af_array &arr) {
     return *A;
 }
 
-template<>
-const detail::Array<common::half> &getArray<common::half>(const af_array &arr) {
-    const detail::Array<common::half> *A =
-        static_cast<const detail::Array<common::half> *>(arr);
-    if (f16 != A->getType())
-        AF_ERROR("Invalid type for input array.", AF_ERR_INTERNAL);
-    return *A;
-}
-
 template<typename T>
 detail::Array<T> &getArray(af_array &arr) {
     detail::Array<T> *A = static_cast<detail::Array<T> *>(arr);
     if ((af_dtype)af::dtype_traits<T>::af_type != A->getType())
-        AF_ERROR("Invalid type for input array.", AF_ERR_INTERNAL);
-    return *A;
-}
-
-template<>
-[[gnu::unused]] detail::Array<common::half> &getArray<common::half>(
-    af_array &arr) {
-    detail::Array<common::half> *A =
-        static_cast<detail::Array<common::half> *>(arr);
-    if (f16 != A->getType())
         AF_ERROR("Invalid type for input array.", AF_ERR_INTERNAL);
     return *A;
 }
@@ -157,7 +139,16 @@ af_array copyArray(const af_array in) {
 
 template<typename T>
 void releaseHandle(const af_array arr) {
-    detail::destroyArray(static_cast<detail::Array<T> *>(arr));
+    auto &Arr      = getArray<T>(arr);
+    int old_device = detail::getActiveDeviceId();
+    int array_id   = Arr.getDevId();
+    if (array_id != old_device) {
+        detail::setDevice(array_id);
+        detail::destroyArray(static_cast<detail::Array<T> *>(arr));
+        detail::setDevice(old_device);
+    } else {
+        detail::destroyArray(static_cast<detail::Array<T> *>(arr));
+    }
 }
 
 template<typename T>

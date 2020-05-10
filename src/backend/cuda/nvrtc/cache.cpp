@@ -151,8 +151,10 @@ void Kernel::getScalar(T &out, const char *name) {
 template void Kernel::setScalar<int>(const char *, int);
 template void Kernel::getScalar<int>(int &, const char *);
 
-string getKernelCacheFilename(const int device, const string &nameExpr) {
-    const string mangledName = "KER" + to_string(deterministicHash(nameExpr));
+string getKernelCacheFilename(const int device, const string &nameExpr,
+                              const string &jitSource) {
+    const string mangledName =
+        "KER" + to_string(deterministicHash(nameExpr + jitSource));
 
     const auto computeFlag = getComputeCapability(device);
     const string computeVersion =
@@ -330,8 +332,9 @@ Kernel buildKernel(const int device, const string &nameExpr,
     // save kernel in cache
     const string &cacheDirectory = getCacheDirectory();
     if (!cacheDirectory.empty()) {
-        const string cacheFile = cacheDirectory + AF_PATH_SEPARATOR +
-                                 getKernelCacheFilename(device, nameExpr);
+        const string cacheFile =
+            cacheDirectory + AF_PATH_SEPARATOR +
+            getKernelCacheFilename(device, nameExpr, jit_ker);
         const string tempFile =
             cacheDirectory + AF_PATH_SEPARATOR + makeTempFilename();
 
@@ -378,12 +381,13 @@ Kernel buildKernel(const int device, const string &nameExpr,
     return entry;
 }
 
-Kernel loadKernel(const int device, const string &nameExpr) {
+Kernel loadKernel(const int device, const string &nameExpr,
+                  const string &source) {
     const string &cacheDirectory = getCacheDirectory();
     if (cacheDirectory.empty()) return Kernel{nullptr, nullptr};
 
     const string cacheFile = cacheDirectory + AF_PATH_SEPARATOR +
-                             getKernelCacheFilename(device, nameExpr);
+                             getKernelCacheFilename(device, nameExpr, source);
 
     CUmodule module   = nullptr;
     CUfunction kernel = nullptr;
@@ -438,14 +442,14 @@ void addKernelToCache(int device, const string &nameExpr, Kernel entry) {
     getCache(device).emplace(nameExpr, entry);
 }
 
-Kernel findKernel(int device, const string &nameExpr) {
+Kernel findKernel(int device, const string &nameExpr, const string &source) {
     kc_t &cache = getCache(device);
 
     auto iter = cache.find(nameExpr);
     if (iter != cache.end()) return iter->second;
 
 #ifdef AF_CACHE_KERNELS_TO_DISK
-    Kernel kernel = loadKernel(device, nameExpr);
+    Kernel kernel = loadKernel(device, nameExpr, source);
     if (kernel.prog != nullptr && kernel.ker != nullptr) {
         addKernelToCache(device, nameExpr, kernel);
         return kernel;
@@ -474,6 +478,7 @@ string getOpEnumStr(af_op_t val) {
         CASE_STMT(af_gt_t);
         CASE_STMT(af_ge_t);
 
+        CASE_STMT(af_bitnot_t);
         CASE_STMT(af_bitor_t);
         CASE_STMT(af_bitand_t);
         CASE_STMT(af_bitxor_t);
@@ -699,7 +704,7 @@ Kernel getKernel(const string &nameExpr, const string &source,
     tInstance += ">";
 
     int device    = getActiveDeviceId();
-    Kernel kernel = findKernel(device, tInstance);
+    Kernel kernel = findKernel(device, tInstance, source);
 
     if (kernel.prog == nullptr || kernel.ker == nullptr) {
         kernel = buildKernel(device, tInstance, source, compileOpts);
